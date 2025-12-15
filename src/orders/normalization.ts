@@ -2,7 +2,7 @@ import { UKAddress } from "../types";
 
 const POSTCODE_INWARD_LENGTH = 3;
 const UK_COUNTRY_CODE = "+44";
-const PHONE_CLEANING_REGEX = /[\s().\-\/]/g;
+const PHONE_CLEANING_REGEX = /[\s().\-/]/g;
 const UK_COUNTRY = "United Kingdom";
 
 /**
