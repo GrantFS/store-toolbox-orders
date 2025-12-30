@@ -1,6 +1,6 @@
 {
   "name": "@grantfs/store-toolbox-orders",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Order processing utilities for Store Toolbox - ID generation, VAT calculations, UK address normalization",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -15,6 +15,11 @@
       "types": "./dist/browser.d.ts",
       "import": "./dist/browser.mjs",
       "require": "./dist/browser.js"
+    },
+    "./dynamodb": {
+      "types": "./dist/dynamodb.d.ts",
+      "import": "./dist/dynamodb.mjs",
+      "require": "./dist/dynamodb.js"
     }
   },
   "files": [
@@ -51,10 +56,12 @@
     "registry": "https://npm.pkg.github.com"
   },
   "peerDependencies": {
-    "@grantfs/store-toolbox-core": "^1.0.0"
+    "@grantfs/store-toolbox-core": "^1.2.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0"
   },
   "devDependencies": {
-    "@grantfs/store-toolbox-core": "^1.0.4",
+    "@aws-sdk/lib-dynamodb": "^3.726.1",
+    "@grantfs/store-toolbox-core": "^1.2.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.0.0",
     "@typescript-eslint/eslint-plugin": "^8.49.0",
