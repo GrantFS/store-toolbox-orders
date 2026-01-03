@@ -1,4 +1,4 @@
-import { OrderItem, OrderItemWithVat, OrderTotals } from "../types";
+import type { OrderItem, OrderItemWithVat, OrderTotals } from "../types";
 import { roundToTwoDecimals } from "./utils";
 
 export const UK_VAT_RATES = {
@@ -12,10 +12,18 @@ interface VatCalculation {
   grossAmount: number;
 }
 
+const calculateVatAmount = (netAmount: number, vatRate: number): number => {
+  return roundToTwoDecimals(netAmount * vatRate);
+};
+
 const calculateVat = (netAmount: number, vatRate: number): VatCalculation => {
-  const vatAmount = roundToTwoDecimals(netAmount * vatRate);
+  const vatAmount = calculateVatAmount(netAmount, vatRate);
   const grossAmount = roundToTwoDecimals(netAmount + vatAmount);
   return { vatAmount, grossAmount };
+};
+
+const sumProperty = <T>(items: T[], selector: (item: T) => number): number => {
+  return items.reduce((sum, item) => sum + selector(item), 0);
 };
 
 export const calculateVatForItem = (item: OrderItem): OrderItemWithVat => {
@@ -31,12 +39,33 @@ export const calculateVatForItem = (item: OrderItem): OrderItemWithVat => {
   };
 };
 
-const sumItemTotals = (items: OrderItemWithVat[]): number => {
-  return items.reduce((sum, item) => sum + item.totalPrice, 0);
+const calculateItemsSubtotal = (items: OrderItemWithVat[]): number => {
+  return sumProperty(items, (item) => item.totalPrice);
 };
 
-const sumItemVat = (items: OrderItemWithVat[]): number => {
-  return items.reduce((sum, item) => sum + item.vatAmount, 0);
+const calculateItemsVat = (items: OrderItemWithVat[]): number => {
+  return sumProperty(items, (item) => item.vatAmount);
+};
+
+const calculateAdjustedVat = (
+  itemsVat: number,
+  shippingVat: number,
+  discountVatReduction: number
+): number => {
+  return roundToTwoDecimals(
+    Math.max(0, itemsVat + shippingVat - discountVatReduction)
+  );
+};
+
+const calculateGrandTotal = (
+  discountedSubtotal: number,
+  finalVat: number,
+  shippingCost: number
+): number => {
+  return Math.max(
+    0,
+    roundToTwoDecimals(discountedSubtotal + finalVat + shippingCost)
+  );
 };
 
 export const calculateOrderTotals = (
@@ -46,33 +75,31 @@ export const calculateOrderTotals = (
 ): OrderTotals => {
   const itemsWithVat = items.map(calculateVatForItem);
 
-  const subtotal = sumItemTotals(itemsWithVat);
-  const totalVat = sumItemVat(itemsWithVat);
+  const subtotal = calculateItemsSubtotal(itemsWithVat);
+  const itemsVat = calculateItemsVat(itemsWithVat);
 
-  const { vatAmount: shippingVat } = calculateVat(
-    shippingCost,
-    UK_VAT_RATES.STANDARD
-  );
-
-  const discountedSubtotal = Math.max(0, subtotal - discount);
-  const { vatAmount: discountVatReduction } = calculateVat(
+  const shippingVat = calculateVatAmount(shippingCost, UK_VAT_RATES.STANDARD);
+  const discountVatReduction = calculateVatAmount(
     discount,
     UK_VAT_RATES.STANDARD
   );
 
-  const finalTotalVat = roundToTwoDecimals(
-    Math.max(0, totalVat + shippingVat - discountVatReduction)
+  const discountedSubtotal = Math.max(0, subtotal - discount);
+  const totalVat = calculateAdjustedVat(
+    itemsVat,
+    shippingVat,
+    discountVatReduction
   );
-
-  const grandTotal = Math.max(
-    0,
-    roundToTwoDecimals(discountedSubtotal + finalTotalVat + shippingCost)
+  const grandTotal = calculateGrandTotal(
+    discountedSubtotal,
+    totalVat,
+    shippingCost
   );
 
   return {
     itemsWithVat,
     subtotal: roundToTwoDecimals(subtotal),
-    totalVat: roundToTwoDecimals(finalTotalVat),
+    totalVat,
     shippingCost: roundToTwoDecimals(shippingCost),
     shippingVat: roundToTwoDecimals(shippingVat),
     discount: roundToTwoDecimals(discount),

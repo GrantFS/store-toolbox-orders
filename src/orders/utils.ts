@@ -1,16 +1,18 @@
-import { ValidationError } from "../types";
+import type { ValidationError } from "../types";
+
+const DECIMAL_PLACES = 2;
+const DECIMAL_MULTIPLIER = Math.pow(10, DECIMAL_PLACES);
 
 export const roundToTwoDecimals = (value: number): number => {
-  return Math.round(value * 100) / 100;
+  return Math.round(value * DECIMAL_MULTIPLIER) / DECIMAL_MULTIPLIER;
 };
 
 export const createValidationError = (
   field: string,
   message: string
-): ValidationError => ({
-  field,
-  message,
-});
+): ValidationError => {
+  return { field, message };
+};
 
 export const createFieldPath = (
   prefix: string | undefined,
@@ -19,12 +21,20 @@ export const createFieldPath = (
   return prefix ? `${prefix}.${field}` : field;
 };
 
+const isEmptyString = (value: string | undefined): value is undefined | "" => {
+  return !value;
+};
+
+const isTooShort = (value: string, minLength: number): boolean => {
+  return value.trim().length < minLength;
+};
+
 export const validateRequiredField = (
   value: string | undefined,
   fieldName: string,
   errorMessage: string
 ): ValidationError | null => {
-  if (!value) {
+  if (isEmptyString(value)) {
     return createValidationError(fieldName, errorMessage);
   }
   return null;
@@ -36,18 +46,28 @@ export const validateMinLength = (
   minLength: number,
   errorMessage: string
 ): ValidationError | null => {
-  if (!value || value.trim().length < minLength) {
+  if (isEmptyString(value) || isTooShort(value, minLength)) {
     return createValidationError(fieldName, errorMessage);
   }
   return null;
 };
 
+const isValidationError = (
+  error: ValidationError | null
+): error is ValidationError => {
+  return error !== null;
+};
+
 export const collectErrors = (
   errors: (ValidationError | null)[]
 ): ValidationError[] => {
-  return errors.filter((error): error is ValidationError => error !== null);
+  return errors.filter(isValidationError);
+};
+
+const formatSingleError = (error: ValidationError): string => {
+  return `${error.field}: ${error.message}`;
 };
 
 export const formatValidationErrors = (errors: ValidationError[]): string => {
-  return errors.map((e) => `${e.field}: ${e.message}`).join(", ");
+  return errors.map(formatSingleError).join(", ");
 };
