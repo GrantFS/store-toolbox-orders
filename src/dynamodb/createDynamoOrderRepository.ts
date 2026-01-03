@@ -1,10 +1,3 @@
-/**
- * DynamoDB Order Repository Factory
- *
- * Creates a DynamoDB implementation of OrderRepository using the
- * RepositoryContext pattern for dependency injection.
- */
-
 import {
   GetCommand,
   PutCommand,
@@ -20,15 +13,7 @@ import type {
 } from "../types";
 import { PaymentStatus } from "../types";
 import { createOrderKeyGenerators, type OrderKeyGeneratorConfig } from "./keys";
-
-interface GetCommandResult {
-  Item?: Record<string, unknown>;
-}
-
-interface QueryCommandResult {
-  Items?: Record<string, unknown>[];
-  LastEvaluatedKey?: Record<string, unknown>;
-}
+import { validateRepositoryContext, getCurrentTimestamp } from "./utils";
 
 export interface DynamoOrderRepositoryConfig extends OrderKeyGeneratorConfig {
   entityTypes?: {
@@ -42,42 +27,22 @@ export interface DynamoOrderRepositoryConfig extends OrderKeyGeneratorConfig {
 
 const DEFAULT_ENTITY_TYPES = {
   order: "ORDER",
-};
+} as const;
 
 const DEFAULT_GSI_INDEXES = {
   gsi1: "gsi1",
-};
+} as const;
 
-/**
- * Creates a DynamoDB implementation of OrderRepository
- *
- * @param ctx - Repository context with tableName and docClient
- * @param config - Optional configuration for keys, entity types, and GSI names
- * @returns OrderRepository implementation
- *
- * @example
- * ```typescript
- * import { createDynamoOrderRepository } from "@grantfs/store-toolbox-orders/dynamodb";
- *
- * const repository = createDynamoOrderRepository(getRepositoryContext());
- * const order = await repository.findById("ORD-123");
- * ```
- */
 export const createDynamoOrderRepository = (
   ctx: RepositoryContext,
   config?: DynamoOrderRepositoryConfig
 ): OrderRepository => {
+  validateRepositoryContext(ctx);
+
   const { tableName, docClient } = ctx;
-
-  if (!docClient) {
-    throw new Error("docClient is required in RepositoryContext");
-  }
-
   const keys = createOrderKeyGenerators(config);
   const entityTypes = { ...DEFAULT_ENTITY_TYPES, ...config?.entityTypes };
   const gsiIndexes = { ...DEFAULT_GSI_INDEXES, ...config?.gsiIndexes };
-
-  const getCurrentTimestamp = () => new Date().toISOString();
 
   return {
     async save(order: Order): Promise<void> {
@@ -91,7 +56,7 @@ export const createDynamoOrderRepository = (
         },
       });
 
-      await docClient.send(command);
+      await docClient!.send(command);
     },
 
     async findById(orderId: string): Promise<Order | null> {
@@ -100,7 +65,7 @@ export const createDynamoOrderRepository = (
         Key: keys.order(orderId),
       });
 
-      const result = (await docClient.send(command)) as GetCommandResult;
+      const result = await docClient!.send(command) as { Item?: Record<string, unknown> };
       return result.Item ? (result.Item as unknown as Order) : null;
     },
 
@@ -119,7 +84,7 @@ export const createDynamoOrderRepository = (
         ScanIndexForward: false,
       });
 
-      const result = (await docClient.send(command)) as QueryCommandResult;
+      const result = await docClient!.send(command) as { Items?: Record<string, unknown>[] };
       return (result.Items as unknown as Order[]) || [];
     },
 
@@ -137,7 +102,7 @@ export const createDynamoOrderRepository = (
         },
       });
 
-      await docClient.send(command);
+      await docClient!.send(command);
     },
 
     async updatePaymentStatus(
@@ -155,7 +120,7 @@ export const createDynamoOrderRepository = (
         },
       });
 
-      await docClient.send(command);
+      await docClient!.send(command);
     },
   };
 };

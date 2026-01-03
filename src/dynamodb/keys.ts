@@ -1,10 +1,3 @@
-/**
- * Order DynamoDB key generators
- *
- * Creates consistent DynamoDB keys for order entities.
- * Uses configurable prefixes for multi-business support.
- */
-
 export interface DynamoKey {
   pk: string;
   sk: string;
@@ -15,26 +8,14 @@ export interface OrderKeyGeneratorConfig {
   customerPrefix?: string;
 }
 
-const DEFAULT_CONFIG: Required<OrderKeyGeneratorConfig> = {
-  orderPrefix: "ORDER",
-  customerPrefix: "CUSTOMER",
-};
+const DEFAULT_KEY_PREFIXES = {
+  order: "ORDER",
+  customer: "CUSTOMER",
+} as const;
 
-/**
- * Creates key generators for order entities
- *
- * @param config - Optional configuration for key prefixes
- * @returns Object with key generator functions
- *
- * @example
- * ```typescript
- * const keys = createOrderKeyGenerators();
- * const orderKey = keys.order("ORD-123");
- * // { pk: "ORDER#ORD-123", sk: "ORDER#ORD-123" }
- * ```
- */
 export const createOrderKeyGenerators = (config?: OrderKeyGeneratorConfig) => {
-  const { orderPrefix, customerPrefix } = { ...DEFAULT_CONFIG, ...config };
+  const orderPrefix = config?.orderPrefix ?? DEFAULT_KEY_PREFIXES.order;
+  const customerPrefix = config?.customerPrefix ?? DEFAULT_KEY_PREFIXES.customer;
 
   return {
     order: (orderId: string): DynamoKey => ({
