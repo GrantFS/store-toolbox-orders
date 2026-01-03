@@ -1,6 +1,6 @@
 {
   "name": "@grantfs/store-toolbox-orders",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Order processing utilities for Store Toolbox - ID generation, VAT calculations, UK address normalization",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
