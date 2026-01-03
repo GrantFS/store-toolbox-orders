@@ -1,42 +1,17 @@
 import { UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import type { RepositoryContext } from "@grantfs/store-toolbox-core";
-import type { OrderStatus } from "../types";
-import { PaymentStatus } from "../types";
+import type { OrderStatus, PaymentStatus } from "../types";
 import { createOrderKeyGenerators, type OrderKeyGeneratorConfig } from "./keys";
-import { validateRepositoryContext, getCurrentTimestamp } from "./utils";
+import { assertValidRepositoryContext, getCurrentTimestamp } from "./utils";
 
-export const updateOrderPaymentStatus = async (
-  ctx: RepositoryContext,
-  orderId: string,
-  paymentStatus: PaymentStatus,
-  config?: OrderKeyGeneratorConfig
-): Promise<void> => {
-  validateRepositoryContext(ctx);
-
-  const keys = createOrderKeyGenerators(config);
-
-  const command = new UpdateCommand({
-    TableName: ctx.tableName,
-    Key: keys.order(orderId),
-    UpdateExpression:
-      "SET paymentStatus = :paymentStatus, updatedAt = :updatedAt",
-    ExpressionAttributeValues: {
-      ":paymentStatus": paymentStatus,
-      ":updatedAt": getCurrentTimestamp(),
-    },
-  });
-
-  await ctx.docClient!.send(command);
-};
-
-export const updateOrderStatusAndPayment = async (
+export async function updateOrderStatusAndPayment(
   ctx: RepositoryContext,
   orderId: string,
   orderStatus: OrderStatus,
   paymentStatus: PaymentStatus,
   config?: OrderKeyGeneratorConfig
-): Promise<void> => {
-  validateRepositoryContext(ctx);
+): Promise<void> {
+  assertValidRepositoryContext(ctx);
 
   const keys = createOrderKeyGenerators(config);
 
@@ -55,5 +30,5 @@ export const updateOrderStatusAndPayment = async (
     },
   });
 
-  await ctx.docClient!.send(command);
-};
+  await ctx.docClient.send(command);
+}

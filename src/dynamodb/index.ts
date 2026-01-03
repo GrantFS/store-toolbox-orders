@@ -5,17 +5,17 @@ export {
 
 export {
   createOrderKeyGenerators,
-  type DynamoKey,
+  type PrimaryKey,
+  type GSI1Key,
+  type KeyPrefixes,
   type OrderKeyGeneratorConfig,
   type OrderKeyGenerators,
 } from "./keys";
 
-export {
-  updateOrderPaymentStatus,
-  updateOrderStatusAndPayment,
-} from "./helpers";
+export { updateOrderStatusAndPayment } from "./helpers";
 
 export {
-  validateRepositoryContext,
+  assertValidRepositoryContext,
   getCurrentTimestamp,
+  type ValidatedRepositoryContext,
 } from "./utils";

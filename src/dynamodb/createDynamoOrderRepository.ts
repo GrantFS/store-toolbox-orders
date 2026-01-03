@@ -10,117 +10,169 @@ import type {
   OrderRepository,
   OrderStatus,
   OrderQueryOptions,
+  PaymentStatus,
 } from "../types";
-import { PaymentStatus } from "../types";
-import { createOrderKeyGenerators, type OrderKeyGeneratorConfig } from "./keys";
-import { validateRepositoryContext, getCurrentTimestamp } from "./utils";
+import {
+  createOrderKeyGenerators,
+  type OrderKeyGeneratorConfig,
+  type OrderKeyGenerators,
+} from "./keys";
+import {
+  assertValidRepositoryContext,
+  getCurrentTimestamp,
+  type ValidatedRepositoryContext,
+} from "./utils";
 
 export interface DynamoOrderRepositoryConfig extends OrderKeyGeneratorConfig {
   entityTypes?: {
     order?: string;
   };
-
   gsiIndexes?: {
     gsi1?: string;
   };
 }
 
-const DEFAULT_ENTITY_TYPES = {
-  order: "ORDER",
-} as const;
+interface RepositoryDependencies {
+  ctx: ValidatedRepositoryContext;
+  keys: OrderKeyGenerators;
+  entityType: string;
+  gsi1IndexName: string;
+}
 
-const DEFAULT_GSI_INDEXES = {
-  gsi1: "gsi1",
-} as const;
+const DEFAULT_ENTITY_TYPE = "ORDER";
+const DEFAULT_GSI1_INDEX = "gsi1";
 
-export const createDynamoOrderRepository = (
+function buildDependencies(
   ctx: RepositoryContext,
   config?: DynamoOrderRepositoryConfig
-): OrderRepository => {
-  validateRepositoryContext(ctx);
-
-  const { tableName, docClient } = ctx;
-  const keys = createOrderKeyGenerators(config);
-  const entityTypes = { ...DEFAULT_ENTITY_TYPES, ...config?.entityTypes };
-  const gsiIndexes = { ...DEFAULT_GSI_INDEXES, ...config?.gsiIndexes };
+): RepositoryDependencies {
+  assertValidRepositoryContext(ctx);
 
   return {
-    async save(order: Order): Promise<void> {
-      const command = new PutCommand({
-        TableName: tableName,
-        Item: {
-          ...order,
-          ...keys.order(order.orderId),
-          ...keys.orderByCustomer(order.customerId, order.createdAt),
-          entityType: entityTypes.order,
-        },
-      });
-
-      await docClient!.send(command);
-    },
-
-    async findById(orderId: string): Promise<Order | null> {
-      const command = new GetCommand({
-        TableName: tableName,
-        Key: keys.order(orderId),
-      });
-
-      const result = await docClient!.send(command) as { Item?: Record<string, unknown> };
-      return result.Item ? (result.Item as unknown as Order) : null;
-    },
-
-    async findByCustomerId(
-      customerId: string,
-      _options?: OrderQueryOptions
-    ): Promise<Order[]> {
-      const command = new QueryCommand({
-        TableName: tableName,
-        IndexName: gsiIndexes.gsi1,
-        KeyConditionExpression: "gsi1pk = :pk AND begins_with(gsi1sk, :sk)",
-        ExpressionAttributeValues: {
-          ":pk": `${keys.prefixes.customer}#${customerId}`,
-          ":sk": `${keys.prefixes.order}#`,
-        },
-        ScanIndexForward: false,
-      });
-
-      const result = await docClient!.send(command) as { Items?: Record<string, unknown>[] };
-      return (result.Items as unknown as Order[]) || [];
-    },
-
-    async updateStatus(orderId: string, status: OrderStatus): Promise<void> {
-      const command = new UpdateCommand({
-        TableName: tableName,
-        Key: keys.order(orderId),
-        UpdateExpression: "SET #status = :status, updatedAt = :updatedAt",
-        ExpressionAttributeNames: {
-          "#status": "status",
-        },
-        ExpressionAttributeValues: {
-          ":status": status,
-          ":updatedAt": getCurrentTimestamp(),
-        },
-      });
-
-      await docClient!.send(command);
-    },
-
-    async updatePaymentStatus(
-      orderId: string,
-      paymentStatus: PaymentStatus
-    ): Promise<void> {
-      const command = new UpdateCommand({
-        TableName: tableName,
-        Key: keys.order(orderId),
-        UpdateExpression:
-          "SET paymentStatus = :paymentStatus, updatedAt = :updatedAt",
-        ExpressionAttributeValues: {
-          ":paymentStatus": paymentStatus,
-          ":updatedAt": getCurrentTimestamp(),
-        },
-      });
-
-      await docClient!.send(command);
-    },
+    ctx,
+    keys: createOrderKeyGenerators(config),
+    entityType: config?.entityTypes?.order ?? DEFAULT_ENTITY_TYPE,
+    gsi1IndexName: config?.gsiIndexes?.gsi1 ?? DEFAULT_GSI1_INDEX,
   };
-};
+}
+
+async function saveOrder(
+  deps: RepositoryDependencies,
+  order: Order
+): Promise<void> {
+  const { ctx, keys, entityType } = deps;
+
+  const command = new PutCommand({
+    TableName: ctx.tableName,
+    Item: {
+      ...order,
+      ...keys.order(order.orderId),
+      ...keys.orderByCustomer(order.customerId, order.createdAt),
+      entityType,
+    },
+  });
+
+  await ctx.docClient.send(command);
+}
+
+async function findOrderById(
+  deps: RepositoryDependencies,
+  orderId: string
+): Promise<Order | null> {
+  const { ctx, keys } = deps;
+
+  const command = new GetCommand({
+    TableName: ctx.tableName,
+    Key: keys.order(orderId),
+  });
+
+  const result = await ctx.docClient.send(command);
+  return (result.Item as Order | undefined) ?? null;
+}
+
+async function findOrdersByCustomerId(
+  deps: RepositoryDependencies,
+  customerId: string,
+  options?: OrderQueryOptions
+): Promise<Order[]> {
+  const { ctx, keys, gsi1IndexName } = deps;
+
+  const command = new QueryCommand({
+    TableName: ctx.tableName,
+    IndexName: gsi1IndexName,
+    KeyConditionExpression: "gsi1pk = :pk AND begins_with(gsi1sk, :sk)",
+    ExpressionAttributeValues: {
+      ":pk": `${keys.prefixes.customer}#${customerId}`,
+      ":sk": `${keys.prefixes.order}#`,
+    },
+    ScanIndexForward: false,
+    Limit: options?.limit,
+    ExclusiveStartKey: options?.cursor
+      ? JSON.parse(Buffer.from(options.cursor, "base64").toString())
+      : undefined,
+  });
+
+  const result = await ctx.docClient.send(command);
+  return (result.Items as Order[]) ?? [];
+}
+
+async function updateOrderStatus(
+  deps: RepositoryDependencies,
+  orderId: string,
+  status: OrderStatus
+): Promise<void> {
+  const { ctx, keys } = deps;
+
+  const command = new UpdateCommand({
+    TableName: ctx.tableName,
+    Key: keys.order(orderId),
+    UpdateExpression: "SET #status = :status, updatedAt = :updatedAt",
+    ExpressionAttributeNames: {
+      "#status": "status",
+    },
+    ExpressionAttributeValues: {
+      ":status": status,
+      ":updatedAt": getCurrentTimestamp(),
+    },
+  });
+
+  await ctx.docClient.send(command);
+}
+
+async function updateOrderPaymentStatus(
+  deps: RepositoryDependencies,
+  orderId: string,
+  paymentStatus: PaymentStatus
+): Promise<void> {
+  const { ctx, keys } = deps;
+
+  const command = new UpdateCommand({
+    TableName: ctx.tableName,
+    Key: keys.order(orderId),
+    UpdateExpression:
+      "SET paymentStatus = :paymentStatus, updatedAt = :updatedAt",
+    ExpressionAttributeValues: {
+      ":paymentStatus": paymentStatus,
+      ":updatedAt": getCurrentTimestamp(),
+    },
+  });
+
+  await ctx.docClient.send(command);
+}
+
+export function createDynamoOrderRepository(
+  ctx: RepositoryContext,
+  config?: DynamoOrderRepositoryConfig
+): OrderRepository {
+  const deps = buildDependencies(ctx, config);
+
+  return {
+    save: (order) => saveOrder(deps, order),
+    findById: (orderId) => findOrderById(deps, orderId),
+    findByCustomerId: (customerId, options) =>
+      findOrdersByCustomerId(deps, customerId, options),
+    updateStatus: (orderId, status) => updateOrderStatus(deps, orderId, status),
+    updatePaymentStatus: (orderId, paymentStatus) =>
+      updateOrderPaymentStatus(deps, orderId, paymentStatus),
+  };
+}
