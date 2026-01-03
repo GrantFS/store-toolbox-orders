@@ -1,18 +1,13 @@
-export interface OrderItem {
-  productId: string;
-  sku?: string;
-  name: string;
-  description?: string;
-  quantity: number;
-  unitPrice: number; // pence
-  vatRate?: number; // decimal (0.2 = 20%)
-}
+// ============================================================================
+// Money & VAT Types (all monetary values are in pence)
+// ============================================================================
 
-export interface OrderItemWithVat extends OrderItem {
-  vatAmount: number; // pence
-  totalPrice: number; // pence, excluding VAT
-  totalPriceInclVat: number; // pence
-}
+export type PriceInPence = number;
+export type VatRateDecimal = number;
+
+// ============================================================================
+// Address Types
+// ============================================================================
 
 export interface UKAddress {
   line1: string;
@@ -23,38 +18,29 @@ export interface UKAddress {
   country: string;
 }
 
-export interface CreateOrderRequest {
-  customerId: string;
-  email: string;
-  phone: string;
-  items: OrderItem[];
-  shippingAddress: UKAddress;
-  billingAddress?: UKAddress;
-  notes?: string;
-  promoCode?: string;
-  shippingMethod?: ShippingMethod;
+// ============================================================================
+// Order Item Types
+// ============================================================================
+
+export interface OrderItem {
+  productId: string;
+  sku?: string;
+  name: string;
+  description?: string;
+  quantity: number;
+  unitPrice: PriceInPence;
+  vatRate?: VatRateDecimal;
 }
 
-export interface Order {
-  orderId: string;
-  customerId: string;
-  email: string;
-  phone: string;
-  items: OrderItemWithVat[];
-  shippingAddress: UKAddress;
-  billingAddress: UKAddress;
-  subtotal: number; // pence, excluding VAT
-  totalVat: number; // pence
-  shippingCost: number; // pence
-  discount: number; // pence
-  grandTotal: number; // pence, including VAT
-  status: OrderStatus;
-  paymentStatus: PaymentStatus;
-  notes?: string;
-  promoCode?: string;
-  createdAt: string;
-  updatedAt: string;
+export interface OrderItemWithVat extends OrderItem {
+  vatAmount: PriceInPence;
+  totalPrice: PriceInPence;
+  totalPriceInclVat: PriceInPence;
 }
+
+// ============================================================================
+// Order Status Types
+// ============================================================================
 
 export enum OrderStatus {
   PENDING = "PENDING",
@@ -80,28 +66,73 @@ export enum ShippingMethod {
   NEXT_DAY = "nextDay",
 }
 
+// ============================================================================
+// Order Types
+// ============================================================================
+
+export interface Order {
+  orderId: string;
+  customerId: string;
+  email: string;
+  phone: string;
+  items: OrderItemWithVat[];
+  shippingAddress: UKAddress;
+  billingAddress: UKAddress;
+  subtotal: PriceInPence;
+  totalVat: PriceInPence;
+  shippingCost: PriceInPence;
+  discount: PriceInPence;
+  grandTotal: PriceInPence;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  notes?: string;
+  promoCode?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateOrderRequest {
+  customerId: string;
+  email: string;
+  phone: string;
+  items: OrderItem[];
+  shippingAddress: UKAddress;
+  billingAddress?: UKAddress;
+  notes?: string;
+  promoCode?: string;
+  shippingMethod?: ShippingMethod;
+}
+
+export interface OrderTotals {
+  itemsWithVat: OrderItemWithVat[];
+  subtotal: PriceInPence;
+  totalVat: PriceInPence;
+  shippingCost: PriceInPence;
+  shippingVat: PriceInPence;
+  discount: PriceInPence;
+  grandTotal: PriceInPence;
+}
+
+// ============================================================================
+// Order Event Types
+// ============================================================================
+
 export interface OrderCreatedEventDetail {
   orderId: string;
   customerId: string;
   email: string;
   items: OrderItemWithVat[];
-  subtotal: number;
-  totalVat: number;
-  grandTotal: number;
+  subtotal: PriceInPence;
+  totalVat: PriceInPence;
+  grandTotal: PriceInPence;
   shippingAddress: UKAddress;
   status: OrderStatus;
   createdAt: string;
 }
 
-export interface OrderTotals {
-  itemsWithVat: OrderItemWithVat[];
-  subtotal: number; // pence, excluding VAT
-  totalVat: number; // pence
-  shippingCost: number; // pence
-  shippingVat: number; // pence
-  discount: number; // pence
-  grandTotal: number; // pence
-}
+// ============================================================================
+// Validation Types
+// ============================================================================
 
 export interface ValidationError {
   field: string;
@@ -112,6 +143,10 @@ export interface OrderValidationResult {
   isValid: boolean;
   errors: ValidationError[];
 }
+
+// ============================================================================
+// Repository Types
+// ============================================================================
 
 export interface OrderQueryOptions {
   limit?: number;
@@ -133,9 +168,13 @@ export interface OrderRepository {
   ): Promise<void>;
 }
 
+// ============================================================================
+// Configuration Types
+// ============================================================================
+
 export interface OrdersConfig {
-  defaultVatRate: number; // decimal (0.2 = 20%)
+  defaultVatRate: VatRateDecimal;
   currency: string;
-  freeShippingThreshold: number; // pence (0 = no free shipping)
-  standardShippingCost: number; // pence
+  freeShippingThreshold: PriceInPence;
+  standardShippingCost: PriceInPence;
 }
